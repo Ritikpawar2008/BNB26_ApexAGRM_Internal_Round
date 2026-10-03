@@ -62,3 +62,74 @@ def test_clip_concatenation(sample_video, tmp_path):
     result = VideoProcessingService.concatenate_clips([clip1, clip2], final_export)
     assert os.path.exists(result)
     assert os.path.getsize(result) > 2000
+
+def test_validate_mp4_success(sample_video):
+    is_valid, msg = VideoProcessingService.validate_mp4(sample_video)
+    assert is_valid is True
+    assert msg == "OK"
+
+def test_validate_mp4_non_existent():
+    is_valid, msg = VideoProcessingService.validate_mp4("storage/non_existent_file_12345.mp4")
+    assert is_valid is False
+    assert "does not exist" in msg
+
+def test_validate_mp4_empty_stub(tmp_path):
+    # Simulates the 48-byte container stub that occurred previously
+    stub_file = os.path.join(tmp_path, "stub.mp4")
+    with open(stub_file, "wb") as f:
+        f.write(b"\x00" * 48)
+
+    is_valid, msg = VideoProcessingService.validate_mp4(stub_file)
+    assert is_valid is False
+    assert "incomplete or empty" in msg
+
+def test_validate_mp4_missing_moov_atom(tmp_path):
+    # Simulates a file >= 5000 bytes with invalid/missing moov atom
+    corrupt_file = os.path.join(tmp_path, "corrupt_no_moov.mp4")
+    with open(corrupt_file, "wb") as f:
+        f.write(b"NOT_A_VALID_MP4_HEADER" * 300)  # ~6600 bytes
+
+    is_valid, msg = VideoProcessingService.validate_mp4(corrupt_file)
+    assert is_valid is False
+    assert "moov atom missing" in msg
+
+def test_extraction_beyond_duration_bounds(sample_video, tmp_path):
+    # Tests that start_time beyond source video duration does not produce a corrupted 48-byte stub
+    output_clip = os.path.join(tmp_path, "clip_eof_recovery.mp4")
+    result = VideoProcessingService.extract_clip_native(
+        input_path=sample_video,
+        start_time=10.0,  # source is only 6 seconds
+        end_time=15.0,
+        output_path=output_clip
+    )
+    assert os.path.exists(result)
+    is_valid, msg = VideoProcessingService.validate_mp4(result)
+    assert is_valid is True, f"Recovered clip failed validation: {msg}"
+
+def test_heal_corrupted_clips(sample_video, tmp_path):
+    heal_dir = tmp_path / "heal_test"
+    heal_dir.mkdir()
+
+    # 1. Create a valid clip
+    valid_clip = str(heal_dir / "valid_clip.mp4")
+    VideoProcessingService.extract_clip_native(sample_video, 1.0, 2.0, valid_clip)
+
+    # 2. Create a 48-byte stub
+    stub_clip = str(heal_dir / "stub_corrupted.mp4")
+    with open(stub_clip, "wb") as f:
+        f.write(b"\x00" * 48)
+
+    # 3. Create a >5KB corrupt file
+    corrupt_clip = str(heal_dir / "moov_corrupted.mp4")
+    with open(corrupt_clip, "wb") as f:
+        f.write(b"CORRUPT_BYTES" * 500)
+
+    # Run healer
+    removed = VideoProcessingService.heal_corrupted_clips(str(heal_dir))
+
+    assert len(removed) == 2
+    assert stub_clip in removed
+    assert corrupt_clip in removed
+    assert os.path.exists(valid_clip)
+    assert not os.path.exists(stub_clip)
+    assert not os.path.exists(corrupt_clip)

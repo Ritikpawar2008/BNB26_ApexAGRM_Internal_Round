@@ -53,3 +53,19 @@ def test_fallback_analysis_structure():
         assert 0.0 <= clip.confidence <= 1.0
         assert len(clip.hook) >= 5
         assert len(clip.caption) >= 5
+
+def test_fallback_analysis_duration_clamping():
+    # When given a 50s duration, clips must strictly be <= 50.0s
+    res_50 = GeminiAIService.get_fallback_analysis(duration=50.0)
+    for c in res_50.clips:
+        assert c.start_time < 50.0
+        assert c.end_time <= 50.0
+        assert c.end_time > c.start_time
+
+    # When given an ultra-short video (e.g. 8s), at least one clip within 8s is generated
+    res_8 = GeminiAIService.get_fallback_analysis(duration=8.0)
+    assert len(res_8.clips) >= 1
+    for c in res_8.clips:
+        assert c.start_time >= 0.0
+        assert c.end_time <= 8.0
+
