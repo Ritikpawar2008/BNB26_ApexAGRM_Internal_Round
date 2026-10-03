@@ -17,10 +17,12 @@ from app.schemas.project import (
     ExportResponse
 )
 from app.schemas.clip import ClipsUpdateRequest, ClipsUpdateData, ClipResponse
+from app.schemas.activity import ActivityListResponse
 from app.services.projects.project_service import ProjectService
 from app.services.files.file_service import FileService
 from app.services.ai.gemini_service import GeminiAIService
 from app.services.video.ffmpeg_service import VideoProcessingService
+from app.services.activity.activity_service import ActivityService
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -42,6 +44,16 @@ def upload_video(project_id: str, file: UploadFile = File(...), db: Session = De
 
     file_info = FileService.save_upload(file, project_id)
     asset = ProjectService.create_asset(db, project_id, file_info)
+
+    ActivityService.record(
+        db,
+        project_id=project_id,
+        type="video_uploaded",
+        status="completed",
+        title="Video uploaded",
+        description=f"{asset.filename} uploaded successfully",
+        metadata={"file_size": asset.file_size, "duration": asset.duration}
+    )
     
     return SuccessResponse(data=UploadAssetResponse(
         asset_id=asset.id,
@@ -95,6 +107,16 @@ def get_project_detail(project_id: str, db: Session = Depends(get_db)):
         clips=clips_detail
     ))
 
+@router.get("/{project_id}/activity", response_model=SuccessResponse[ActivityListResponse])
+def get_project_activity(project_id: str, db: Session = Depends(get_db)):
+    project = ProjectService.get_project(db, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="PROJECT_NOT_FOUND: Project not found")
+
+    activities = ActivityService.get_activities(db, project_id)
+    items = [ActivityService.to_item(a) for a in activities]
+    return SuccessResponse(data=ActivityListResponse(activities=items))
+
 @router.post("/{project_id}/analyze", response_model=SuccessResponse[AnalyzeProjectResponse])
 def analyze_project(project_id: str, db: Session = Depends(get_db)):
     project = ProjectService.get_project(db, project_id)
@@ -106,18 +128,56 @@ def analyze_project(project_id: str, db: Session = Depends(get_db)):
     if not os.path.exists(source_path) and asset:
         source_path = os.path.abspath(asset.storage_path)
 
+    ActivityService.record(
+        db,
+        project_id=project_id,
+        type="analysis_started",
+        status="in_progress",
+        title="Video analysis started",
+        description="Analyzing video semantics and pacing..."
+    )
+
     # Call Gemini AIService
     ai_result = GeminiAIService.analyze_video(source_path)
+
+    if getattr(ai_result, "is_fallback", False):
+        ActivityService.record(
+            db,
+            project_id=project_id,
+            type="gemini_failed",
+            status="warning",
+            title="Gemini processing failed",
+            description="Fallback processing activated"
+        )
+        ActivityService.record(
+            db,
+            project_id=project_id,
+            type="fallback_activated",
+            status="completed",
+            title="Fallback processing completed",
+            description="Video clips generated using fallback instructions"
+        )
+
+    # Persist in DB
+    analysis, clips = ProjectService.save_analysis_and_clips(db, project_id, ai_result.summary, ai_result.clips)
 
     # Extract clips via VideoProcessingService
     clips_dir = os.path.join(settings.STORAGE_DIR, "clips")
     os.makedirs(clips_dir, exist_ok=True)
-    for rec in ai_result.clips:
-        clip_output_path = os.path.join(clips_dir, f"{project_id}_{rec.id}.mp4")
-        VideoProcessingService.extract_clip(source_path, rec.start_time, rec.end_time, clip_output_path)
+    for c in clips:
+        clip_output_path = os.path.join(clips_dir, f"{project_id}_{c.id}.mp4")
+        VideoProcessingService.extract_clip(source_path, c.start_time, c.end_time, clip_output_path)
 
-    # Persist in DB
-    analysis, clips = ProjectService.save_analysis_and_clips(db, project_id, ai_result.summary, ai_result.clips)
+
+    ActivityService.record(
+        db,
+        project_id=project_id,
+        type="analysis_completed",
+        status="completed",
+        title="Video analysis completed",
+        description=f"AI identified {len(clips)} viral moments",
+        metadata={"clips_detected": len(clips)}
+    )
 
     return SuccessResponse(data=AnalyzeProjectResponse(
         project_id=project_id,
@@ -168,6 +228,16 @@ def export_project(project_id: str, payload: ExportRequest = None, db: Session =
     download_url = f"/storage/exports/{export_filename}"
     export = ProjectService.create_export(db, project_id, export_format, download_url, total_duration)
 
+    ActivityService.record(
+        db,
+        project_id=project_id,
+        type="export_completed",
+        status="completed",
+        title="Export completed",
+        description="Final 9:16 video clips are ready",
+        metadata={"format": export_format, "total_duration": total_duration}
+    )
+
     return SuccessResponse(data=ExportResponse(
         export_id=export.id,
         project_id=project_id,
@@ -175,4 +245,5 @@ def export_project(project_id: str, payload: ExportRequest = None, db: Session =
         download_url=download_url,
         total_duration=round(total_duration, 2)
     ))
+
 

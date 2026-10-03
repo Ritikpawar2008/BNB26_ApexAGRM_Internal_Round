@@ -15,3 +15,5 @@ class AIAnalysisResult(BaseModel):
     analysis_status: str = "completed"
     summary: str
     clips: List[AIClipRecommendation]
+    is_fallback: bool = False
+

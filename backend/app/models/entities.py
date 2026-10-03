@@ -19,6 +19,8 @@ class Project(Base):
     analyses = relationship("Analysis", back_populates="project", cascade="all, delete-orphan")
     clips = relationship("Clip", back_populates="project", cascade="all, delete-orphan")
     exports = relationship("Export", back_populates="project", cascade="all, delete-orphan")
+    activities = relationship("Activity", back_populates="project", cascade="all, delete-orphan", order_by="Activity.created_at.desc()")
+
 
 class Asset(Base):
     __tablename__ = "assets"
@@ -73,4 +75,18 @@ class Export(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     project = relationship("Project", back_populates="exports")
+
+class Activity(Base):
+    __tablename__ = "activities"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    project_id = Column(String(36), ForeignKey("projects.id"), nullable=False)
+    type = Column(String(50), nullable=False)
+    status = Column(String(20), nullable=False)
+    title = Column(String(100), nullable=False)
+    description = Column(Text, nullable=True)
+    meta_info = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    project = relationship("Project", back_populates="activities")
+
 

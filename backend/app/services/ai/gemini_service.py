@@ -31,8 +31,10 @@ class GeminiAIService:
         # Fallback AI recommendations
         return AIAnalysisResult(
             analysis_status="completed",
+            is_fallback=True,
             summary="Educational walkthrough explaining transformer architectures and key concepts.",
             clips=[
+
                 AIClipRecommendation(
                     id="clip_01",
                     start_time=12.0,

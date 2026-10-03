@@ -71,7 +71,7 @@ class ProjectService:
 
         clips = []
         for idx, rec in enumerate(clip_recs):
-            clip_id = getattr(rec, "id", None) or f"clip_{str(idx + 1).zfill(2)}"
+            clip_id = generate_prefixed_id("clip")
             relative_url = f"/storage/clips/{project_id}_{clip_id}.mp4"
             clip = Clip(
                 id=clip_id,
@@ -88,6 +88,7 @@ class ProjectService:
                 is_selected=True
             )
             db.add(clip)
+
             clips.append(clip)
 
         project = db.query(Project).filter(Project.id == project_id).first()
