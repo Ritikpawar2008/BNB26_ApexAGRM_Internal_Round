@@ -1,4 +1,4 @@
-﻿# Environment secrets
+# Environment secrets
 .env
 backend/.env
 frontend/.env.local
@@ -24,6 +24,7 @@ yarn-debug.log*
 yarn-error.log*
 
 # Media Storage (Ignore actual media files, keep directory structure)
+storage/
 backend/storage/uploads/*
 !backend/storage/uploads/.gitkeep
 backend/storage/clips/*
