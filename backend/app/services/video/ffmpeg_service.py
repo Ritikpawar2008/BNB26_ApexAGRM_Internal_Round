@@ -129,17 +129,93 @@ class VideoProcessingService:
         os.replace(tmp_output, output_path)
         return output_path
 
+    @staticmethod
+    def _format_subtitle_lines(text: str, max_chars_per_line: int = 26, max_lines: int = 3) -> str:
+        """Splits subtitle text into clean, mobile-readable lines fitting within top bar safe zone."""
+        if not text:
+            return ""
+        words = text.strip().split()
+        lines = []
+        current_line = []
+        current_len = 0
+        for w in words:
+            if current_len + len(w) + (1 if current_line else 0) <= max_chars_per_line:
+                current_line.append(w)
+                current_len += len(w) + (1 if len(current_line) > 1 else 0)
+            else:
+                if current_line:
+                    lines.append(" ".join(current_line))
+                current_line = [w]
+                current_len = len(w)
+                if len(lines) >= max_lines:
+                    break
+        if current_line and len(lines) < max_lines:
+            lines.append(" ".join(current_line))
+        return "\n".join(lines)
+
+    @classmethod
+    def _build_canvas_filter(
+        cls,
+        subtitle_text: Optional[str] = None,
+        editing_message: Optional[str] = None
+    ) -> Tuple[str, List[str]]:
+        """
+        Builds the 9:16 Canvas filter chain:
+        - Centers 16:9 video on a 1080x1920 canvas (#0F172A).
+        - Renders high-contrast subtitles in the top canvas bar.
+        - Renders a subtle editing message badge in the bottom canvas bar.
+        """
+        base_filter = "scale=1080:-1:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=0x0F172A"
+        temp_files = []
+        filter_parts = [base_filter]
+
+        # 1. Top Bar Subtitles
+        if subtitle_text and subtitle_text.strip():
+            formatted_sub = cls._format_subtitle_lines(subtitle_text.strip())
+            if formatted_sub:
+                f_sub = tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8")
+                f_sub.write(formatted_sub)
+                f_sub.close()
+                temp_files.append(f_sub.name)
+                safe_sub_path = f_sub.name.replace("\\", "/").replace(":", "\\:")
+                sub_filter = (
+                    f"drawtext=textfile='{safe_sub_path}':"
+                    "x=(w-text_w)/2:y=260:"
+                    "fontsize=42:fontcolor=white:"
+                    "box=1:boxcolor=0x00000099:boxborderw=14:line_spacing=10"
+                )
+                filter_parts.append(sub_filter)
+
+        # 2. Bottom Bar Editing Message
+        if editing_message and editing_message.strip():
+            f_msg = tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8")
+            f_msg.write(editing_message.strip())
+            f_msg.close()
+            temp_files.append(f_msg.name)
+            safe_msg_path = f_msg.name.replace("\\", "/").replace(":", "\\:")
+            msg_filter = (
+                f"drawtext=textfile='{safe_msg_path}':"
+                "x=(w-text_w)/2:y=1720:"
+                "fontsize=26:fontcolor=0x94A3B8:"
+                "box=1:boxcolor=0x1E293BEE:boxborderw=10"
+            )
+            filter_parts.append(msg_filter)
+
+        return ",".join(filter_parts), temp_files
+
     @classmethod
     def extract_clip_canvas_stack(
         cls,
         input_path: str,
         start_time: float,
         end_time: float,
-        output_path: str
+        output_path: str,
+        subtitle_text: Optional[str] = None,
+        editing_message: Optional[str] = "AI-generated edit"
     ) -> str:
         """
         Trims video and formats it into a 9:16 vertical canvas (1080x1920).
-        Centers the original video and leaves clean canvas space for hooks/captions.
+        Renders top subtitles and a bottom editing message in canvas safe areas.
         Employs atomic file writing (.tmp.mp4) and validates container integrity.
         """
         ffmpeg_bin = get_ffmpeg_binary()
@@ -157,45 +233,59 @@ class VideoProcessingService:
             except Exception:
                 pass
 
-        filter_complex = "scale=1080:-1:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=0x0F172A"
+        filter_complex, temp_files = cls._build_canvas_filter(subtitle_text, editing_message)
 
-        cmd = [
-            ffmpeg_bin,
-            "-ss", str(round(safe_start, 2)),
-            "-i", input_path,
-            "-t", str(round(clip_duration, 2)),
-            "-vf", filter_complex,
-            "-c:v", "libx264",
-            "-preset", "fast",
-            "-crf", "22",
-            "-c:a", "aac",
-            "-b:a", "128k",
-            "-avoid_negative_ts", "make_zero",
-            "-pix_fmt", "yuv420p",
-            "-movflags", "+faststart",
-            "-y",
-            tmp_output
-        ]
+        try:
+            cmd = [
+                ffmpeg_bin,
+                "-ss", str(round(safe_start, 2)),
+                "-i", input_path,
+                "-t", str(round(clip_duration, 2)),
+                "-vf", filter_complex,
+                "-c:v", "libx264",
+                "-preset", "fast",
+                "-crf", "22",
+                "-c:a", "aac",
+                "-b:a", "128k",
+                "-avoid_negative_ts", "make_zero",
+                "-pix_fmt", "yuv420p",
+                "-movflags", "+faststart",
+                "-y",
+                tmp_output
+            ]
 
-        logger.info(f"Executing 9:16 Canvas Stack extraction: safe range [{safe_start:.2f}s -> {safe_end:.2f}s]")
-        result = subprocess.run(cmd, capture_output=True, text=True, stdin=subprocess.DEVNULL)
+            logger.info(f"Executing 9:16 Canvas Stack extraction with overlays: safe range [{safe_start:.2f}s -> {safe_end:.2f}s]")
+            result = subprocess.run(cmd, capture_output=True, text=True, stdin=subprocess.DEVNULL)
 
-        is_valid, reason = cls.validate_mp4(tmp_output) if result.returncode == 0 else (False, result.stderr)
+            is_valid, reason = cls.validate_mp4(tmp_output) if result.returncode == 0 else (False, result.stderr)
 
-        if not is_valid:
-            if os.path.exists(tmp_output):
-                try:
-                    os.remove(tmp_output)
-                except Exception:
-                    pass
-            logger.warning(f"Canvas Stack failed ({reason}). Triggering fallback extraction pipeline...")
-            return cls.extract_clip_fallback(input_path, safe_start, safe_end, output_path, target_format="9:16")
+            if not is_valid:
+                if os.path.exists(tmp_output):
+                    try:
+                        os.remove(tmp_output)
+                    except Exception:
+                        pass
+                logger.warning(f"Canvas Stack failed ({reason}). Triggering fallback extraction pipeline...")
+                return cls.extract_clip_fallback(
+                    input_path, safe_start, safe_end, output_path,
+                    target_format="9:16",
+                    subtitle_text=subtitle_text,
+                    editing_message=editing_message
+                )
 
-        # Atomic rename once validated
-        if os.path.exists(output_path):
-            os.remove(output_path)
-        os.replace(tmp_output, output_path)
-        return output_path
+            # Atomic rename once validated
+            if os.path.exists(output_path):
+                os.remove(output_path)
+            os.replace(tmp_output, output_path)
+            return output_path
+
+        finally:
+            for tf in temp_files:
+                if os.path.exists(tf):
+                    try:
+                        os.remove(tf)
+                    except Exception:
+                        pass
 
     @classmethod
     def extract_clip_fallback(
@@ -204,7 +294,9 @@ class VideoProcessingService:
         start_time: float,
         end_time: float,
         output_path: str,
-        target_format: str = "native"
+        target_format: str = "native",
+        subtitle_text: Optional[str] = None,
+        editing_message: Optional[str] = "Fallback edit applied"
     ) -> str:
         """
         Resilient Fallback Pipeline:
@@ -214,10 +306,12 @@ class VideoProcessingService:
         """
         logger.info(f"Running automated fallback extraction on: {input_path}")
         ffmpeg_bin = get_ffmpeg_binary()
+        os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
 
         total_duration = cls.probe_duration(input_path)
         safe_start = max(0.0, min(start_time, max(0.0, total_duration - 1.0)))
         safe_end = min(total_duration, max(safe_start + 0.5, end_time))
+        clip_duration = max(0.5, safe_end - safe_start)
 
         tmp_output = output_path + ".fallback.mp4"
         if os.path.exists(tmp_output):
@@ -226,39 +320,58 @@ class VideoProcessingService:
             except Exception:
                 pass
 
-        cmd = [
-            ffmpeg_bin,
-            "-i", input_path,
-            "-ss", str(round(safe_start, 2)),
-            "-to", str(round(safe_end, 2)),
-            "-c:v", "libx264",
-            "-preset", "veryfast",
-            "-crf", "23",
-            "-c:a", "aac",
-            "-b:a", "128k",
-            "-pix_fmt", "yuv420p",
-            "-movflags", "+faststart",
-            "-y",
-            tmp_output
-        ]
+        temp_files = []
+        try:
+            cmd = [
+                ffmpeg_bin,
+                "-ss", str(round(safe_start, 2)),
+                "-i", input_path,
+                "-t", str(round(clip_duration, 2)),
+            ]
 
-        if target_format == "9:16":
-            cmd.insert(-3, "-vf")
-            cmd.insert(-3, "scale=1080:-1:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=0x0F172A")
+            if target_format == "9:16":
+                filter_complex, temp_files = cls._build_canvas_filter(subtitle_text, editing_message or "Fallback edit applied")
+                cmd.extend(["-vf", filter_complex])
 
-        subprocess.run(cmd, capture_output=True, text=True, stdin=subprocess.DEVNULL)
+            cmd.extend([
+                "-c:v", "libx264",
+                "-preset", "veryfast",
+                "-crf", "23",
+                "-c:a", "aac",
+                "-b:a", "128k",
+                "-avoid_negative_ts", "make_zero",
+                "-pix_fmt", "yuv420p",
+                "-movflags", "+faststart",
+                "-y",
+                tmp_output
+            ])
 
-        is_valid, reason = cls.validate_mp4(tmp_output)
-        if not is_valid:
-            if os.path.exists(tmp_output):
-                os.remove(tmp_output)
-            raise RuntimeError(f"Both primary and fallback clip extractions failed: {reason}")
+            res = subprocess.run(cmd, capture_output=True, text=True, stdin=subprocess.DEVNULL)
+            if res.returncode != 0:
+                logger.error(f"Fallback FFmpeg execution failed (code {res.returncode}): {res.stderr}")
 
-        if os.path.exists(output_path):
-            os.remove(output_path)
-        os.replace(tmp_output, output_path)
-        logger.info(f"Automated fallback extraction succeeded: {output_path}")
-        return output_path
+            is_valid, reason = cls.validate_mp4(tmp_output) if res.returncode == 0 else (False, res.stderr)
+            if not is_valid:
+                if os.path.exists(tmp_output):
+                    try:
+                        os.remove(tmp_output)
+                    except Exception:
+                        pass
+                raise RuntimeError(f"Both primary and fallback clip extractions failed: {reason}")
+
+            if os.path.exists(output_path):
+                os.remove(output_path)
+            os.replace(tmp_output, output_path)
+            logger.info(f"Automated fallback extraction succeeded: {output_path}")
+            return output_path
+
+        finally:
+            for tf in temp_files:
+                if os.path.exists(tf):
+                    try:
+                        os.remove(tf)
+                    except Exception:
+                        pass
 
     @classmethod
     def extract_clip(
@@ -267,11 +380,17 @@ class VideoProcessingService:
         start_time: float,
         end_time: float,
         output_path: str,
-        target_format: str = "native"
+        target_format: str = "native",
+        subtitle_text: Optional[str] = None,
+        editing_message: Optional[str] = None
     ) -> str:
-        """Unified entrypoint: dispatches to native or 9:16 vertical canvas stack with fallback."""
+        """Unified entrypoint: dispatches to native or 9:16 vertical canvas stack with overlays."""
         if target_format == "9:16":
-            return cls.extract_clip_canvas_stack(input_path, start_time, end_time, output_path)
+            return cls.extract_clip_canvas_stack(
+                input_path, start_time, end_time, output_path,
+                subtitle_text=subtitle_text,
+                editing_message=editing_message or "AI-generated edit"
+            )
         return cls.extract_clip_native(input_path, start_time, end_time, output_path)
 
     @classmethod

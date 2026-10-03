@@ -133,3 +133,35 @@ def test_heal_corrupted_clips(sample_video, tmp_path):
     assert os.path.exists(valid_clip)
     assert not os.path.exists(stub_clip)
     assert not os.path.exists(corrupt_clip)
+
+def test_canvas_stack_with_subtitles_and_editing_badge(sample_video, tmp_path):
+    output_clip = os.path.join(tmp_path, "clip_overlay_ai.mp4")
+    result = VideoProcessingService.extract_clip_canvas_stack(
+        input_path=sample_video,
+        start_time=1.0,
+        end_time=3.0,
+        output_path=output_clip,
+        subtitle_text="KEY BREAKTHROUGH\nIN ATTENTION MODELS",
+        editing_message="AI-generated edit"
+    )
+    assert os.path.exists(result)
+    assert os.path.getsize(result) > 5000
+    is_valid, msg = VideoProcessingService.validate_mp4(result)
+    assert is_valid is True, f"Canvas overlay clip failed validation: {msg}"
+
+def test_canvas_fallback_with_subtitles_and_editing_badge(sample_video, tmp_path):
+    output_clip = os.path.join(tmp_path, "clip_overlay_fallback.mp4")
+    result = VideoProcessingService.extract_clip_fallback(
+        input_path=sample_video,
+        start_time=1.5,
+        end_time=3.5,
+        output_path=output_clip,
+        target_format="9:16",
+        subtitle_text="FALLBACK DEMO CONTENT",
+        editing_message="Fallback edit applied"
+    )
+    assert os.path.exists(result)
+    assert os.path.getsize(result) > 5000
+    is_valid, msg = VideoProcessingService.validate_mp4(result)
+    assert is_valid is True, f"Fallback overlay clip failed validation: {msg}"
+
