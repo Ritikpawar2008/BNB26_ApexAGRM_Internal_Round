@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List
 
 class ClipUpdateRequest(BaseModel):
     id: str
@@ -7,6 +7,12 @@ class ClipUpdateRequest(BaseModel):
     hook: Optional[str] = None
     caption: Optional[str] = None
     is_selected: Optional[bool] = None
+
+class ClipsUpdateRequest(BaseModel):
+    clips: List[ClipUpdateRequest]
+
+class ClipsUpdateData(BaseModel):
+    updated_count: int
 
 class ClipResponse(BaseModel):
     id: str
@@ -23,3 +29,4 @@ class ClipResponse(BaseModel):
 
     class Config:
         from_attributes = True
+

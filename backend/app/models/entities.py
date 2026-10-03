@@ -16,6 +16,7 @@ class Project(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     assets = relationship("Asset", back_populates="project", cascade="all, delete-orphan")
+    analyses = relationship("Analysis", back_populates="project", cascade="all, delete-orphan")
     clips = relationship("Clip", back_populates="project", cascade="all, delete-orphan")
     exports = relationship("Export", back_populates="project", cascade="all, delete-orphan")
 
@@ -31,6 +32,17 @@ class Asset(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     project = relationship("Project", back_populates="assets")
+
+class Analysis(Base):
+    __tablename__ = "analyses"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    project_id = Column(String(36), ForeignKey("projects.id"), nullable=False)
+    summary = Column(Text, nullable=True)
+    status = Column(String(30), default="completed")
+    raw_response = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    project = relationship("Project", back_populates="analyses")
 
 class Clip(Base):
     __tablename__ = "clips"
@@ -61,3 +73,4 @@ class Export(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     project = relationship("Project", back_populates="exports")
+
