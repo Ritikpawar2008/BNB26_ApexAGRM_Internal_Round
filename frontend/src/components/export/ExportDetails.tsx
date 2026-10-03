@@ -17,9 +17,30 @@ export const ExportDetails: React.FC<ExportDetailsProps> = ({ clip, index }) => 
 
   const handleCopy = () => {
     const text = `HOOK:\n${clip.hook}\n\nCAPTION:\n${clip.caption}`;
-    navigator.clipboard.writeText(text);
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).catch(() => {
+        fallbackCopy(text);
+      });
+    } else {
+      fallbackCopy(text);
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const fallbackCopy = (text: string) => {
+    const el = document.createElement('textarea');
+    el.value = text;
+    el.style.position = 'fixed';
+    el.style.left = '-9999px';
+    document.body.appendChild(el);
+    el.select();
+    try {
+      document.execCommand('copy');
+    } catch {
+      // ignore
+    }
+    document.body.removeChild(el);
   };
 
   return (

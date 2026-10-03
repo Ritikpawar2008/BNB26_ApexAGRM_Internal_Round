@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { ArrowUpRight } from 'lucide-react';
 import { MOCK_PROJECT } from '../data/mockData';
+import { ROUTES } from '../constants/routes';
 import { useProject } from '../hooks/useProject';
 import { Clip } from '../types/project';
 import { API_BASE_URL, USE_MOCK } from '../services/apiClient';
@@ -15,6 +16,7 @@ import { ExportDetails } from '../components/export/ExportDetails';
 import { ExportSettings } from '../components/export/ExportSettings';
 import { ExportProgress } from '../components/export/ExportProgress';
 import { ExportComplete } from '../components/export/ExportComplete';
+import { StudioButton } from '../components/studio/StudioButton';
 import { formatSecondsToTime } from '../utils/timeFormatter';
 import '../components/studio/studio.css';
 
@@ -49,12 +51,15 @@ export const ExportPage: React.FC = () => {
   useEffect(() => {
     if (initialClips.length > 0) {
       setClips(initialClips);
-      if (!selectedId) setSelectedId(initialClips[0].id);
+      if (!selectedId || !initialClips.some((c) => c.id === selectedId)) {
+        setSelectedId(initialClips[0].id);
+      }
     }
-  }, [initialClips]);
+  }, [initialClips, selectedId]);
 
   const selectedIndex = clips.findIndex((c) => c.id === selectedId);
-  const selectedClip = selectedIndex >= 0 ? clips[selectedIndex] : clips[0];
+  const safeIndex = selectedIndex >= 0 ? selectedIndex : 0;
+  const selectedClip = clips.length > 0 ? (clips[safeIndex] || clips[0]) : undefined;
 
   const totalDuration = useMemo(
     () => Math.round(clips.reduce((sum, c) => sum + (c.end_time - c.start_time), 0)),
@@ -69,8 +74,7 @@ export const ExportPage: React.FC = () => {
       const tag = (e.target as HTMLElement)?.tagName;
       if (e.code !== 'Space' || tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'BUTTON') return;
       e.preventDefault();
-      // toggle playback
-      previewRef.current?.play();
+      previewRef.current?.toggle();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -78,7 +82,7 @@ export const ExportPage: React.FC = () => {
 
   // Export pipeline execution
   const startExport = async () => {
-    if (status === 'exporting') return;
+    if (status === 'exporting' || clips.length === 0) return;
     setStatus('exporting');
     setProgress(0);
 
@@ -144,6 +148,7 @@ export const ExportPage: React.FC = () => {
           projectName={project.name}
           status={status}
           clipCount={clips.length}
+          clips={clips}
           onExport={startExport}
         />
 
@@ -168,6 +173,16 @@ export const ExportPage: React.FC = () => {
               onReset={handleResetExport}
             />
           </div>
+        ) : clips.length === 0 ? (
+          <section className="py-24 border-t st-hairline text-center">
+            <p className="st-eyebrow">No clips ready</p>
+            <p className="st-display text-[40px] mt-4 text-[var(--st-muted)]">
+              No clips selected for export yet.
+            </p>
+            <Link to={ROUTES.STUDIO(projectId)}>
+              <StudioButton className="mt-10">Return to Studio</StudioButton>
+            </Link>
+          </section>
         ) : (
           <>
             <ExportHero
@@ -185,7 +200,7 @@ export const ExportPage: React.FC = () => {
                   <ExportPreview
                     ref={previewRef}
                     clip={selectedClip}
-                    index={selectedIndex + 1}
+                    index={safeIndex + 1}
                     format={format}
                     platform={platform}
                     sourceUrl={project.asset?.url}
@@ -215,7 +230,7 @@ export const ExportPage: React.FC = () => {
                 {selectedClip && (
                   <ExportDetails
                     clip={selectedClip}
-                    index={selectedIndex + 1}
+                    index={safeIndex + 1}
                   />
                 )}
 

@@ -10,6 +10,14 @@ interface ExportHeroProps {
 
 const pad = (n: number) => n.toString().padStart(2, '0');
 
+const STEPS = [
+  'Raw footage',
+  'AI understanding',
+  'Moments detected',
+  'Edit & refine',
+  'Platform export',
+];
+
 export const ExportHero: React.FC<ExportHeroProps> = ({
   clipCount,
   totalDuration,
@@ -32,18 +40,37 @@ export const ExportHero: React.FC<ExportHeroProps> = ({
         <span className="text-[var(--st-faint)]">ready to ship.</span>
       </h1>
 
-      <div className="mt-14 grid grid-cols-2 md:grid-cols-4 border-t st-hairline pt-6">
+      <ol className="mt-14 grid grid-cols-2 md:grid-cols-5 border-t st-hairline">
+        {STEPS.map((step, i) => {
+          const current = i === STEPS.length - 1;
+          return (
+            <li key={step} className="pt-5 pr-6 flex items-baseline gap-3">
+              <span className={`st-mono text-[11px] ${current ? 'text-[var(--st-accent)]' : 'text-[var(--st-faint)]'}`}>
+                0{i + 1}
+              </span>
+              <span className={`text-[14px] ${current ? 'text-[var(--st-text)]' : 'text-[var(--st-muted)]'}`}>
+                {step}
+              </span>
+              {!current && <span className="text-[var(--st-faint)] text-[12px]">✓</span>}
+            </li>
+          );
+        })}
+      </ol>
+
+      <div className="mt-8 grid grid-cols-2 md:grid-cols-4 border-t st-hairline pt-6">
         <div>
           <span className="st-eyebrow !text-[10px] block">Cuts</span>
           <span className="st-mono text-[20px] font-light mt-1 block">{pad(clipCount)} segments</span>
         </div>
         <div>
           <span className="st-eyebrow !text-[10px] block">Resolution</span>
-          <span className="st-mono text-[20px] font-light mt-1 block">1080 × 1920</span>
+          <span className="st-mono text-[20px] font-light mt-1 block">
+            {format === '9:16' ? '1080 × 1920' : format === '1:1' ? '1080 × 1080' : '1920 × 1080'}
+          </span>
         </div>
         <div>
-          <span className="st-eyebrow !text-[10px] block">Encoder</span>
-          <span className="st-mono text-[20px] font-light mt-1 block">H.264 / AAC</span>
+          <span className="st-eyebrow !text-[10px] block">Audio Pacing</span>
+          <span className="st-mono text-[20px] font-light mt-1 block">-14 LUFS (Normalized)</span>
         </div>
         <div>
           <span className="st-eyebrow !text-[10px] block">Captions</span>

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ArrowUpRight } from 'lucide-react';
 import { Clip } from '../types/project';
 import { ROUTES } from '../constants/routes';
@@ -28,6 +28,7 @@ export const StudioPage: React.FC = () => {
   const { id } = useParams();
   const projectId = id ?? MOCK_PROJECT.id;
   const navigate = useNavigate();
+  const location = useLocation();
   const { project, loading } = useProject(projectId);
 
   // ---- Studio state (owned here, rendered by presentational components) ----
@@ -42,12 +43,14 @@ export const StudioPage: React.FC = () => {
 
   useEffect(() => {
     if (!project) return;
-    const ordered = withPositions([...project.clips].sort((a, b) => a.position - b.position));
-    originals.current = Object.fromEntries(ordered.map((c) => [c.id, c]));
+    originals.current = Object.fromEntries(project.clips.map((c) => [c.id, { ...c }]));
+    const passed = (location.state as { clips?: Clip[] })?.clips;
+    const sourceClips = passed && passed.length > 0 ? passed : project.clips;
+    const ordered = withPositions([...sourceClips].sort((a, b) => a.position - b.position));
     setClips(ordered);
     setSelectedId(ordered[0]?.id);
     setSaveState('clean');
-  }, [project]);
+  }, [project, location.state]);
 
   const sourceDuration = useMemo(
     () => project?.asset?.duration || Math.max(0, ...clips.map((c) => c.end_time)) || 1,

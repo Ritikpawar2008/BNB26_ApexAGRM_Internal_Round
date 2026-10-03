@@ -2,6 +2,7 @@ import React from 'react';
 import { ArrowLeft, ArrowUpRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ROUTES } from '../../constants/routes';
+import { Clip } from '../../types/project';
 import { StudioButton } from '../studio/StudioButton';
 
 export type ExportStatus = 'idle' | 'exporting' | 'completed';
@@ -11,6 +12,7 @@ interface ExportHeaderProps {
   projectName: string;
   status: ExportStatus;
   clipCount: number;
+  clips?: Clip[];
   onExport: () => void;
 }
 
@@ -19,6 +21,7 @@ export const ExportHeader: React.FC<ExportHeaderProps> = ({
   projectName,
   status,
   clipCount,
+  clips,
   onExport,
 }) => {
   return (
@@ -30,6 +33,7 @@ export const ExportHeader: React.FC<ExportHeaderProps> = ({
         <span className="text-[var(--st-faint)]">/</span>
         <Link
           to={ROUTES.STUDIO(projectId)}
+          state={{ clips }}
           className="inline-flex items-center gap-1.5 text-[14px] text-[var(--st-muted)] hover:text-[var(--st-text)] transition-colors"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
@@ -59,7 +63,7 @@ export const ExportHeader: React.FC<ExportHeaderProps> = ({
             : 'Ready to export'}
         </span>
 
-        <Link to={ROUTES.STUDIO(projectId)}>
+        <Link to={ROUTES.STUDIO(projectId)} state={{ clips }}>
           <StudioButton>Back to Studio</StudioButton>
         </Link>
 

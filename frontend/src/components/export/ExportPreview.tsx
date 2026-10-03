@@ -8,6 +8,7 @@ export interface ExportPreviewHandle {
   seek: (time: number) => void;
   play: () => void;
   pause: () => void;
+  toggle: () => void;
 }
 
 interface ExportPreviewProps {
@@ -44,8 +45,7 @@ export const ExportPreview = forwardRef<ExportPreviewHandle, ExportPreviewProps>
         setCurrentTime((prev) => {
           const next = prev + delta;
           if (next >= clipDuration) {
-            setIsPlaying(false);
-            return 0;
+            return 0; // Smooth loop for short-form preview
           }
           return next;
         });
@@ -89,6 +89,21 @@ export const ExportPreview = forwardRef<ExportPreviewHandle, ExportPreviewProps>
       setIsPlaying(false);
     }, []);
 
+    const toggle = useCallback(() => {
+      setIsPlaying((prev) => {
+        if (prev) {
+          videoRef.current?.pause();
+          return false;
+        } else {
+          const video = videoRef.current;
+          if (video && !failed) {
+            video.play().catch(() => setFailed(true));
+          }
+          return true;
+        }
+      });
+    }, [failed]);
+
     const seek = useCallback(
       (time: number) => {
         const clamped = Math.max(0, Math.min(time, clipDuration));
@@ -100,9 +115,7 @@ export const ExportPreview = forwardRef<ExportPreviewHandle, ExportPreviewProps>
       [clipDuration, clip.start_time, hasLoadedNative]
     );
 
-    useImperativeHandle(ref, () => ({ seek, play, pause }), [seek, play, pause]);
-
-    const toggle = () => (isPlaying ? pause() : play());
+    useImperativeHandle(ref, () => ({ seek, play, pause, toggle }), [seek, play, pause, toggle]);
 
     const progress = clipDuration > 0 ? Math.min(1, currentTime / clipDuration) : 0;
 

@@ -31,6 +31,7 @@ export const ExportClipList: React.FC<ExportClipListProps> = ({
               key={clip.id}
               type="button"
               onClick={() => onSelectClip(clip)}
+              aria-selected={isSelected}
               className={`p-4 rounded-[18px] border text-left transition-all duration-300 flex items-center justify-between gap-4 ${
                 isSelected
                   ? 'border-[var(--st-text)] bg-[var(--st-surface-2)] shadow-md'
@@ -39,10 +40,11 @@ export const ExportClipList: React.FC<ExportClipListProps> = ({
             >
               <div className="flex items-center gap-4 min-w-0">
                 <span
-                  className={`st-mono text-[14px] font-medium shrink-0 ${
+                  className={`st-mono text-[14px] font-medium shrink-0 flex items-center gap-1.5 ${
                     isSelected ? 'text-[var(--st-accent)]' : 'text-white/40'
                   }`}
                 >
+                  {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-[var(--st-accent)] animate-pulse" />}
                   {pad(index + 1)}
                 </span>
                 <div className="min-w-0">

@@ -35,9 +35,30 @@ export const ExportComplete: React.FC<ExportCompleteProps> = ({
           `Clip ${pad(i + 1)} · ${c.title}\nHOOK: "${c.hook}"\nCAPTION: ${c.caption}\nDURATION: ${Math.round(c.end_time - c.start_time)}s\n`
       )
       .join('\n────────────────────────────\n\n');
-    navigator.clipboard.writeText(text);
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).catch(() => {
+        fallbackCopy(text);
+      });
+    } else {
+      fallbackCopy(text);
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const fallbackCopy = (text: string) => {
+    const el = document.createElement('textarea');
+    el.value = text;
+    el.style.position = 'fixed';
+    el.style.left = '-9999px';
+    document.body.appendChild(el);
+    el.select();
+    try {
+      document.execCommand('copy');
+    } catch {
+      // ignore
+    }
+    document.body.removeChild(el);
   };
 
   const handleDownload = () => {
@@ -153,6 +174,7 @@ export const ExportComplete: React.FC<ExportCompleteProps> = ({
         <div className="mt-8 pt-6 border-t st-hairline w-full max-w-md">
           <Link
             to={ROUTES.STUDIO(projectId)}
+            state={{ clips }}
             className="inline-flex items-center gap-2 text-xs text-[var(--st-muted)] hover:text-white transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
