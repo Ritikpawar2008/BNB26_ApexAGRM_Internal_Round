@@ -1,38 +1,56 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
 import { PageContainer } from '../components/layout/PageContainer';
-import { Card } from '../components/common/Card';
-import { Button } from '../components/common/Button';
-import { Badge } from '../components/common/Badge';
-import { MOCK_PROJECT } from '../data/mockData';
-import { Plus, Video } from 'lucide-react';
+import { StatsCard } from '../components/dashboard/StatsCard';
+import { QuickActions } from '../components/dashboard/QuickActions';
+import { RecentProjects } from '../components/dashboard/RecentProjects';
+import { AIInsights } from '../components/dashboard/AIInsights';
+import { FileVideo, Scissors, Sparkles, HardDrive } from 'lucide-react';
 
 export const DashboardPage: React.FC = () => {
   return (
     <PageContainer
-      title="Creator Dashboard"
-      subtitle="Manage your video projects and AI-generated clips"
-      action={
-        <Link to="/projects/new">
-          <Button className="flex items-center gap-2">
-            <Plus className="w-4 h-4" /> New Project
-          </Button>
-        </Link>
-      }
+      title="Welcome back, Creator 👋"
+      subtitle="Here's what's happening with your projects today."
     >
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <Link to={`/projects/${MOCK_PROJECT.id}/studio`}>
-          <Card className="hover:ring-2 hover:ring-indigo-500/50 transition-all">
-            <div className="aspect-video bg-slate-900 rounded-lg flex items-center justify-center mb-4 text-slate-600">
-              <Video className="w-10 h-10 text-indigo-500" />
-            </div>
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="font-semibold text-white">{MOCK_PROJECT.name}</h3>
-              <Badge variant="success" text={MOCK_PROJECT.status} />
-            </div>
-            <p className="text-xs text-slate-400">3 AI Clips Generated • 92s duration</p>
-          </Card>
-        </Link>
+      {/* Stats Row */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <StatsCard 
+          title="Total Projects" 
+          value={12} 
+          icon={FileVideo} 
+          trend={{ value: 15, isPositive: true }} 
+        />
+        <StatsCard 
+          title="Generated Clips" 
+          value={148} 
+          icon={Scissors} 
+          trend={{ value: 32, isPositive: true }} 
+        />
+        <StatsCard 
+          title="AI Analyses" 
+          value={24} 
+          icon={Sparkles} 
+        />
+        <StatsCard 
+          title="Assets Size" 
+          value="4.2 GB" 
+          icon={HardDrive} 
+          trend={{ value: 2, isPositive: false }} 
+        />
+      </div>
+
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Column (takes 2/3 space on large screens) */}
+        <div className="lg:col-span-2 space-y-6">
+          <RecentProjects />
+        </div>
+
+        {/* Right Column (takes 1/3 space on large screens) */}
+        <div className="space-y-6">
+          <QuickActions />
+          <AIInsights />
+        </div>
       </div>
     </PageContainer>
   );
