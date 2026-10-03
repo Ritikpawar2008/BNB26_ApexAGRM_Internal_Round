@@ -1,0 +1,219 @@
+/* ------------------------------------------------------------------
+   CreatorAI · Studio design layer
+   Scoped under .studio so nothing leaks into other pages.
+   Visual language: editorial, dark canvas, faint grid, oversized type.
+------------------------------------------------------------------- */
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@100..900&family=JetBrains+Mono:wght@400;500&display=swap');
+
+.studio {
+  --st-ink: #0a0a0b;
+  --st-surface: #121214;
+  --st-surface-2: #18181b;
+  --st-line: rgba(255, 255, 255, 0.07);
+  --st-line-strong: rgba(255, 255, 255, 0.14);
+  --st-text: #f4f2ee;
+  --st-muted: rgba(244, 242, 238, 0.56);
+  --st-faint: rgba(244, 242, 238, 0.3);
+  --st-accent: #ff5a36;
+  --st-ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  font-family: 'Archivo', ui-sans-serif, system-ui, sans-serif;
+  color: var(--st-text);
+  background-color: var(--st-ink);
+  background-image:
+    linear-gradient(var(--st-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--st-line) 1px, transparent 1px);
+  background-size: 96px 96px;
+  background-position: -1px -1px;
+  position: relative;
+  isolation: isolate;
+}
+
+/* Soft ambient light — one restrained blob, not a gradient wash */
+.studio::before {
+  content: '';
+  position: absolute;
+  top: -240px;
+  right: -120px;
+  width: 720px;
+  height: 720px;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(255, 90, 54, 0.16), transparent 62%);
+  filter: blur(40px);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.studio ::selection {
+  background: var(--st-accent);
+  color: #0a0a0b;
+}
+
+.st-mono {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-feature-settings: 'tnum' 1;
+}
+
+.st-eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--st-muted);
+  font-weight: 500;
+}
+
+.st-display {
+  font-weight: 300;
+  letter-spacing: -0.035em;
+  line-height: 0.95;
+}
+
+.st-surface {
+  background: var(--st-surface);
+  border: 1px solid var(--st-line);
+  border-radius: 28px;
+}
+
+.st-hairline {
+  border-color: var(--st-line);
+}
+
+/* ---------- Rolling pill button (text rolls up on hover) ---------- */
+.st-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 44px;
+  padding: 0 22px;
+  border-radius: 9999px;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  transition: background-color 0.4s var(--st-ease), color 0.4s var(--st-ease),
+    border-color 0.4s var(--st-ease), transform 0.4s var(--st-ease);
+  white-space: nowrap;
+}
+.st-btn:active {
+  transform: scale(0.97);
+}
+.st-btn:disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+.st-btn--primary {
+  background: var(--st-text);
+  color: var(--st-ink);
+}
+.st-btn--primary:hover {
+  background: var(--st-accent);
+  color: var(--st-ink);
+}
+.st-btn--ghost {
+  border: 1px solid var(--st-line-strong);
+  color: var(--st-text);
+}
+.st-btn--ghost:hover {
+  border-color: var(--st-text);
+}
+.st-roll {
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+  height: 1.25em;
+  line-height: 1.25em;
+}
+.st-roll > span {
+  display: block;
+  transition: transform 0.5s var(--st-ease);
+}
+.st-btn:hover .st-roll > span {
+  transform: translateY(-100%);
+}
+
+/* ---------- Editable writing surfaces ---------- */
+.st-write {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  outline: none;
+  resize: none;
+  color: var(--st-text);
+  caret-color: var(--st-accent);
+}
+.st-write::placeholder {
+  color: var(--st-faint);
+}
+
+/* ---------- Range / scrub ---------- */
+.st-scrub {
+  position: relative;
+  height: 18px;
+  cursor: pointer;
+  touch-action: none;
+}
+.st-scrub__track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  transform: translateY(-50%);
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 2px;
+  transition: height 0.3s var(--st-ease);
+}
+.st-scrub:hover .st-scrub__track {
+  height: 4px;
+}
+
+/* ---------- Motion ---------- */
+@keyframes st-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.st-rise {
+  animation: st-rise 0.9s var(--st-ease) both;
+}
+
+@keyframes st-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.st-pulse {
+  animation: st-pulse 2.2s ease-in-out infinite;
+}
+
+@keyframes st-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.st-fade {
+  animation: st-fade 0.6s var(--st-ease) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .st-rise,
+  .st-fade,
+  .st-pulse {
+    animation: none;
+  }
+  .st-roll > span {
+    transition: none;
+  }
+}

@@ -18,8 +18,8 @@ export interface Asset {
 export interface Clip {
   id: string;
   position: number;
-  start_time: float;
-  end_time: float;
+  start_time: number;
+  end_time: number;
   title: string;
   reason?: string;
   hook: string;
