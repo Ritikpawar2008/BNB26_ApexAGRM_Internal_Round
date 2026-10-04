@@ -18,8 +18,8 @@ export interface Asset {
 export interface Clip {
   id: string;
   position: number;
-  start_time: float;
-  end_time: float;
+  start_time: number;
+  end_time: number;
   title: string;
   reason?: string;
   hook: string;
@@ -33,3 +33,42 @@ export interface ProjectDetail extends Project {
   asset?: Asset;
   clips: Clip[];
 }
+
+export type RequirementStatus = 'open' | 'in_progress' | 'resolved' | 'changes_requested';
+export type RequirementPriority = 'low' | 'normal' | 'urgent';
+
+export interface RequirementComment {
+  id: string;
+  requirementId: string;
+  author: 'client' | 'editor';
+  authorName: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface Requirement {
+  id: string;
+  projectId: string;
+  title: string;
+  description: string;
+  clipId?: string; // Optional tag for specific clip
+  status: RequirementStatus;
+  priority: RequirementPriority;
+  author: 'client' | 'editor';
+  authorName: string;
+  comments: RequirementComment[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectWorkLog {
+  id: string;
+  projectId: string;
+  category: 'upload' | 'ai' | 'ffmpeg' | 'editor' | 'client' | 'export';
+  title: string;
+  details: string;
+  actor: string;
+  timestamp: string;
+  commitHash?: string;
+}
+

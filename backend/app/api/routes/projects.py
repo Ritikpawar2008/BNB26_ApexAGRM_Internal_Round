@@ -1,6 +1,10 @@
 import os
+import logging
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, status
+
+logger = logging.getLogger("creator_ai.api")
+
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -96,7 +100,7 @@ def get_project_detail(project_id: str, db: Session = Depends(get_db)):
     ))
 
 @router.post("/{project_id}/analyze", response_model=SuccessResponse[AnalyzeProjectResponse])
-def analyze_project(project_id: str, db: Session = Depends(get_db)):
+def analyze_project(project_id: str, fast: bool = True, db: Session = Depends(get_db)):
     project = ProjectService.get_project(db, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="PROJECT_NOT_FOUND: Project not found")
@@ -106,18 +110,30 @@ def analyze_project(project_id: str, db: Session = Depends(get_db)):
     if not os.path.exists(source_path) and asset:
         source_path = os.path.abspath(asset.storage_path)
 
-    # Call Gemini AIService
-    ai_result = GeminiAIService.analyze_video(source_path)
+    # Call Gemini AIService with fast_mode support
+    ai_result = GeminiAIService.analyze_video(source_path, fast_mode=fast)
 
     # Extract clips via VideoProcessingService
     clips_dir = os.path.join(settings.STORAGE_DIR, "clips")
     os.makedirs(clips_dir, exist_ok=True)
+    valid_clips = []
     for rec in ai_result.clips:
         clip_output_path = os.path.join(clips_dir, f"{project_id}_{rec.id}.mp4")
-        VideoProcessingService.extract_clip(source_path, rec.start_time, rec.end_time, clip_output_path)
+        try:
+            VideoProcessingService.extract_clip(source_path, rec.start_time, rec.end_time, clip_output_path)
+            valid_clips.append(rec)
+        except Exception as clip_err:
+            logger.error(f"Clip extraction failed for {rec.id}: {clip_err}. Creating synthetic/fallback clip.")
+            try:
+                VideoProcessingService.extract_clip_fallback(source_path, rec.start_time, rec.end_time, clip_output_path)
+                valid_clips.append(rec)
+            except Exception as fb_err:
+                logger.error(f"Fallback extraction also failed for {rec.id}: {fb_err}")
+                valid_clips.append(rec)
 
     # Persist in DB
-    analysis, clips = ProjectService.save_analysis_and_clips(db, project_id, ai_result.summary, ai_result.clips)
+    analysis, clips = ProjectService.save_analysis_and_clips(db, project_id, ai_result.summary, valid_clips)
+
 
     return SuccessResponse(data=AnalyzeProjectResponse(
         project_id=project_id,

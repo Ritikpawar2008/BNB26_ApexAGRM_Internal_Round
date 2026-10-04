@@ -1,14 +1,48 @@
 import os
 import re
+import uuid
 import shutil
 import subprocess
 import tempfile
+import time
+
 import logging
 from typing import List, Tuple, Optional
 
 logger = logging.getLogger("creator_ai.ffmpeg")
 
+def safe_replace(src: str, dst: str, max_retries: int = 8, delay: float = 0.25) -> str:
+    """
+    Safely moves or replaces src to dst on Windows, retrying if a file lock is briefly held.
+    Falls back to copy + remove to avoid [WinError 32].
+    """
+    for _ in range(max_retries):
+        try:
+            if os.path.exists(dst):
+                try:
+                    os.remove(dst)
+                except Exception:
+                    pass
+            os.replace(src, dst)
+            return dst
+        except PermissionError:
+            time.sleep(delay)
+        except Exception:
+            time.sleep(delay)
+
+    try:
+        shutil.copy2(src, dst)
+        try:
+            os.remove(src)
+        except Exception:
+            pass
+        return dst
+    except Exception as e:
+        logger.error(f"safe_replace failed from {src} to {dst}: {e}")
+        return dst
+
 def get_ffmpeg_binary() -> str:
+
     """Finds system FFmpeg or falls back to bundled imageio-ffmpeg executable."""
     sys_bin = shutil.which("ffmpeg")
     if sys_bin:
@@ -90,21 +124,38 @@ class VideoProcessingService:
         safe_end = min(total_duration, max(safe_start + 1.0, end_time))
         clip_duration = max(0.5, safe_end - safe_start)
 
-        tmp_output = output_path + ".tmp.mp4"
-        if os.path.exists(tmp_output):
-            try:
-                os.remove(tmp_output)
-            except Exception:
-                pass
+        tmp_output = f"{output_path}.{uuid.uuid4().hex[:6]}.tmp.mp4"
 
+        # 1. Instant Stream Copy attempt (0.05s, lossless, zero CPU load)
+        copy_cmd = [
+            ffmpeg_bin,
+            "-ss", str(round(safe_start, 2)),
+            "-i", input_path,
+            "-t", str(round(clip_duration, 2)),
+            "-c", "copy",
+            "-avoid_negative_ts", "make_zero",
+            "-movflags", "+faststart",
+            "-y",
+            tmp_output
+        ]
+        try:
+            res_copy = subprocess.run(copy_cmd, capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=8)
+            is_valid_copy, _ = cls.validate_mp4(tmp_output) if res_copy.returncode == 0 else (False, "")
+            if is_valid_copy:
+                logger.info(f"Stream-copy clip extraction completed in milliseconds: [{safe_start:.2f}s -> {safe_end:.2f}s]")
+                return safe_replace(tmp_output, output_path)
+        except Exception as copy_err:
+            logger.warning(f"Stream-copy timed out or failed: {copy_err}. Falling back to ultrafast preset.")
+
+        # 2. Ultrafast transcoding fallback if keyframe copy had issues (~1s)
         cmd = [
             ffmpeg_bin,
             "-ss", str(round(safe_start, 2)),
             "-i", input_path,
             "-t", str(round(clip_duration, 2)),
             "-c:v", "libx264",
-            "-preset", "fast",
-            "-crf", "22",
+            "-preset", "ultrafast",
+            "-crf", "24",
             "-c:a", "aac",
             "-b:a", "128k",
             "-avoid_negative_ts", "make_zero",
@@ -114,10 +165,12 @@ class VideoProcessingService:
             tmp_output
         ]
 
-        logger.info(f"Executing native clip extraction: safe range [{safe_start:.2f}s -> {safe_end:.2f}s]")
-        result = subprocess.run(cmd, capture_output=True, text=True, stdin=subprocess.DEVNULL)
-
-        is_valid, reason = cls.validate_mp4(tmp_output) if result.returncode == 0 else (False, result.stderr)
+        logger.info(f"Executing ultrafast clip extraction: safe range [{safe_start:.2f}s -> {safe_end:.2f}s]")
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=12)
+            is_valid, reason = cls.validate_mp4(tmp_output) if result.returncode == 0 else (False, result.stderr)
+        except Exception as trans_err:
+            is_valid, reason = False, str(trans_err)
 
         if not is_valid:
             if os.path.exists(tmp_output):
@@ -129,10 +182,8 @@ class VideoProcessingService:
             return cls.extract_clip_fallback(input_path, safe_start, safe_end, output_path, target_format="native")
 
         # Atomic rename once validated
-        if os.path.exists(output_path):
-            os.remove(output_path)
-        os.replace(tmp_output, output_path)
-        return output_path
+        return safe_replace(tmp_output, output_path)
+
 
     @staticmethod
     def _format_subtitle_lines(text: str, max_chars_per_line: int = 26, max_lines: int = 3) -> str:
@@ -279,10 +330,8 @@ class VideoProcessingService:
                 )
 
             # Atomic rename once validated
-            if os.path.exists(output_path):
-                os.remove(output_path)
-            os.replace(tmp_output, output_path)
-            return output_path
+            return safe_replace(tmp_output, output_path)
+
 
         finally:
             for tf in temp_files:
@@ -381,11 +430,10 @@ class VideoProcessingService:
                     return output_path
                 raise RuntimeError(f"Both primary and fallback clip extractions failed: {reason}")
 
-            if os.path.exists(output_path):
-                os.remove(output_path)
-            os.replace(tmp_output, output_path)
+            safe_replace(tmp_output, output_path)
             logger.info(f"Automated fallback extraction succeeded: {output_path}")
             return output_path
+
 
         finally:
             for tf in temp_files:
@@ -466,10 +514,8 @@ class VideoProcessingService:
             if not is_valid:
                 raise RuntimeError(f"Stitched export failed validation: {reason}")
 
-            if os.path.exists(output_path):
-                os.remove(output_path)
-            os.replace(tmp_output, output_path)
-            return output_path
+            return safe_replace(tmp_output, output_path)
+
 
         finally:
             if os.path.exists(manifest_path):

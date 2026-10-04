@@ -26,8 +26,9 @@ VIDEO_ANALYSIS_PROMPT = """Analyze this video thoroughly.
    - Clear visual demonstration or slide breakdown
 3. For each recommended clip provide:
    - id: Unique identifier (e.g. clip_01, clip_02)
-   - start_time: Exact start time in seconds (float, >= 0.0)
-   - end_time: Exact end time in seconds (float, strictly greater than start_time)
+   - start_time: Exact start time in SECONDS (float, e.g. 15.0). Must NOT be in minutes.
+   - end_time: Exact end time in SECONDS (float, e.g. 45.5). Must be strictly greater than start_time.
+
    - title: Short, punchy headline (under 60 characters)
    - reason: 1-2 sentence explanation of why this segment is high retention
    - hook: Suggested opening verbal hook for the creator to use or display

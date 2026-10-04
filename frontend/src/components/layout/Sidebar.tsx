@@ -1,16 +1,19 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Video, Scissors, Download } from 'lucide-react';
+import { LayoutDashboard, PlusCircle } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
   const location = useLocation();
   const navItems = [
-    { label: 'Dashboard', icon: LayoutDashboard, path: '/' },
-    { label: 'New Project', icon: Video, path: '/projects/new' },
+    { label: 'All Projects', icon: LayoutDashboard, path: '/' },
+    { label: 'New Project', icon: PlusCircle, path: '/projects/new' },
   ];
 
   return (
-    <aside className="w-60 border-r border-slate-800 bg-slate-900 p-4 flex flex-col gap-2">
+    <aside className="w-56 border-r border-[#23252a] bg-[#08090a] p-3 flex flex-col gap-1 select-none">
+      <div className="px-3 py-2 text-[11px] font-mono uppercase tracking-wider text-[#62666d]">
+        Workspace
+      </div>
       {navItems.map((item) => {
         const Icon = item.icon;
         const active = location.pathname === item.path;
@@ -18,11 +21,13 @@ export const Sidebar: React.FC = () => {
           <Link
             key={item.path}
             to={item.path}
-            className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-              active ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+            className={`flex items-center gap-2.5 px-3 py-1.5 rounded-[6px] text-xs font-medium transition-all duration-150 ${
+              active
+                ? 'bg-[#161718] text-[#ffffff] border border-[#23252a] shadow-sm'
+                : 'text-[#8a8f98] hover:text-[#d0d6e0] hover:bg-[#0f1011]'
             }`}
           >
-            <Icon className="w-4 h-4" />
+            <Icon className={`w-3.5 h-3.5 ${active ? 'text-[#e4f222]' : 'text-[#62666d]'}`} />
             {item.label}
           </Link>
         );
@@ -30,3 +35,4 @@ export const Sidebar: React.FC = () => {
     </aside>
   );
 };
+

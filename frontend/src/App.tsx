@@ -11,7 +11,7 @@ import { ExportPage } from './pages/ExportPage';
 export const App: React.FC = () => {
   return (
     <BrowserRouter>
-      <div className="flex flex-col min-h-screen bg-slate-900 text-slate-100">
+      <div className="flex flex-col min-h-screen bg-[#08090a] text-[#d0d6e0] font-sans">
         <Header />
         <div className="flex flex-1">
           <Sidebar />
